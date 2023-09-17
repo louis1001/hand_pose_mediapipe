@@ -62,6 +62,9 @@ const video = document.getElementById("webcam");
 const canvasElement = document.getElementById(
     "output_canvas"
 );
+const resultsCanvasElement = document.getElementById(
+    "results_canvas"
+);
 const canvasCtx = canvasElement.getContext("2d");
 
 // Enable the live webcam view and start detection.
@@ -98,6 +101,11 @@ async function predictWebcam() {
     canvasElement.width = video.videoWidth;
     canvasElement.height = video.videoHeight;
 
+    resultsCanvasElement.style.width = video.videoWidth;;
+    resultsCanvasElement.style.height = video.videoHeight;
+    resultsCanvasElement.width = video.videoWidth;
+    resultsCanvasElement.height = video.videoHeight;
+
     // Now let's start detecting the stream.
     if (runningMode === "IMAGE") {
         runningMode = "VIDEO";
@@ -111,10 +119,10 @@ async function predictWebcam() {
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
+    let hands = []
     if (results.landmarks) {
         if (once) { console.log(results) }
 
-        let hands = []
         results.landmarks.forEach((landmarks, i) => {
             let handedness = results.handednesses[i][0]
             
@@ -125,17 +133,19 @@ async function predictWebcam() {
                 console.log(landmarks)
             }
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-                color: "#00FF00",
+                color: "#b252",
                 lineWidth: 7
             });
-            drawLandmarks(canvasCtx, landmarks, { color: "#FF0000", lineWidth: 1 });
+            drawLandmarks(canvasCtx, landmarks, { color: "#0212", lineWidth: 1 });
         })
-
-        analyze(hands)
 
         once = false
     }
     canvasCtx.restore();
+
+    if (hands) {
+        analyze(hands)
+    }
 
     // Call this function again to keep predicting when the browser is ready.
     if (webcamRunning === true) {

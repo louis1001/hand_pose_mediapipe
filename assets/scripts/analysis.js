@@ -119,7 +119,7 @@ export class Hand {
         this.isRightHand = isRightHand
 
         this.constructFingers()
-        this.getHandOrientation()
+        this.parseHandGeometry()
     }
 
     static angleWindow = 45
@@ -176,24 +176,13 @@ export class Hand {
         const angle = Vector.angleBetween(lastVector, comparisonVector)
 
         return angle > Hand.angleWindow
-
-        // let dotAccumulation = 0
-
-        // for (let i = 1; i < fingerVectors.length; i++) {
-        //     let vec1 = fingerVectors[i-1]
-        //     let vec2 = fingerVectors[i]
-
-        //     let dot = Math.abs(Vector.dotProduct(vec1, vec2))
-            
-        //     dotAccumulation += dot
-        // }
-
-        // return dotAccumulation < Hand.thresholds[finger]
     }
 
-    getHandOrientation() {
+    parseHandGeometry() {
         let midPointLeft = this._points[9]
+        let midPointRight = this._points[13]
 
+        // let thumbPoint = this._points[1]
         let wristPoint = this._points[0]
 
         let rotationVector = Vector.substract(midPointLeft, wristPoint)
@@ -203,6 +192,16 @@ export class Hand {
         }
 
         this.handAngle = -angle
+
+        let handScale = Vector.substract(wristPoint, midPointLeft)
+        this.handScale = handScale
+        
+        let midPoint = new Vector(
+            (midPointLeft.x + midPointRight.x + wristPoint.x)/3,
+            (midPointLeft.y + midPointRight.y + wristPoint.y)/3,
+        )
+
+        this.middle = midPoint
     }
 
     constructFingers() {
@@ -223,6 +222,14 @@ export class Hand {
         let thumbPoints = [1, 2, 3, 4]
         fingers.thumb = this.pointsToVectors(thumbPoints)
 
+        this.fingerPoints = {
+            'index': indexPoints.map(i => this._points[i]),
+            'middle': middlePoints.map(i => this._points[i]),
+            'ring': ringPoints.map(i => this._points[i]),
+            'pinky': pinkyPoints.map(i => this._points[i]),
+            'thumb': thumbPoints.map(i => this._points[i])
+        }
+
         let palmForward = false
         if (this.isRightHand) {
             palmForward = this._points[1].x < this._points[17].x
@@ -232,6 +239,19 @@ export class Hand {
 
         this.fingers = fingers
         this.palmForward = palmForward
+    }
+
+    touchingTips(finger1, finger2, threshold) {
+        const min = this.handScale.length() * (threshold || 0.3)
+
+        const fingerPoints1 = this.fingerPoints[finger1]
+        const fingerPoints2 = this.fingerPoints[finger2]
+        const fingerTip1 = fingerPoints1[fingerPoints1.length-1]
+        const fingerTip2 = fingerPoints2[fingerPoints2.length-1]
+
+        const distance = Vector.substract(fingerTip1, fingerTip2)
+        
+        return distance.length() < min
     }
 
 }
@@ -278,11 +298,28 @@ export async function analyze(hands) {
 
         let result
 
-        if (arrayEquals(fingers, [false, true, true, true, true])) {
+        // Letras
+        if (arrayEquals(fingers, [false, true, true, true, false])) {
+            result = "L"
+        } else if (arrayEquals(fingers, [true, true, true, false, true])) {
+            result = "I"
+        } else if (arrayEquals(fingers, [false, false, true, true, true]) && hand.touchingTips('index', 'middle')) {
+            result = "U"
+        } else if (arrayEquals(fingers, [true, true, true, false, false])) {
+            result = "Y"
+
+        } else if (arrayEquals(fingers, [false, false, false, false, true])
+                && hand.touchingTips('index', 'middle')
+                && hand.touchingTips('middle', 'ring')
+                && hand.touchingTips('ring', 'pinky', 0.4)) {
+            result = "B"
+
+            // Números genéricos
+        } else if (arrayEquals(fingers, [false, true, true, true, true])) {
             result = "1"
         } else if (arrayEquals(fingers, [false, false, true, true, true])) {
             result = "2"
-        } else if (arrayEquals(fingers, [false, false, false, true, true])) {
+        } else if (arrayEquals(fingers, [false, false, false, true, true]) || arrayEquals(fingers, [false, false, true, true, false])) {
             result = "3"
         } else if (arrayEquals(fingers, [false, false, false, false, true])) {
             result = "4"
@@ -290,9 +327,17 @@ export async function analyze(hands) {
             result = "5"
         } else if (arrayEquals(fingers, [true, true, true, true, true])) {
             result = "0"
+
+            // Gestos complejos
+        } else if (!fingers[1] && !fingers[2] && !fingers[3] && (hand.touchingTips('thumb', 'index'))) {
+            result = "Ok"
+
+            // Si no se reconoció
         } else {
             result = "?"
         }
+
+        drawResult(hand.middle, result, hand)
 
         results.push({hand, value: result})
     }
@@ -300,16 +345,44 @@ export async function analyze(hands) {
     await displayResults(results)
 }
 
+/** @type HTMLCanvasElement */
 const canvasElement = document.getElementById(
-    "output_canvas"
+    "results_canvas"
 );
 const canvasCtx = canvasElement.getContext("2d");
 
-function drawResult(pt, text) {
+/**
+ * @param pt Vector
+ * @param text String
+ */
+
+function drawResult(pt, text, hand) {
     canvasCtx.save()
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height)
+    // canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height)
 
+    const pointX = (1-pt.x) * canvasElement.width
+    const pointY = pt.y * canvasElement.height
 
+    const handSize = hand.handScale.length() * canvasElement.height
+
+    canvasCtx.strokeStyle = '#F06'
+    canvasCtx.fillStyle = '#F06'
+    canvasCtx.lineWidth = 4
+
+    canvasCtx.translate(pointX, pointY)
+    let rotation = toRadians(hand.handAngle)
+    canvasCtx.rotate(-rotation)
+    canvasCtx.beginPath()
+    // canvasCtx.arc(pointX, pointY, 10, 0, Math.PI*2)
+    canvasCtx.font = `${Math.floor(handSize)}px Verdana, Geneva, Tahoma, sans-serif`
+    canvasCtx.textAlign = 'center'
+    canvasCtx.textBaseline = 'middle'
+    canvasCtx.fillText(text, 0, 0)
+    canvasCtx.strokeStyle = '#FFF'
+    canvasCtx.fillStyle = '#FFF'
+    canvasCtx.fillText(text, 3, 3)
+
+    canvasCtx.stroke()
 
     canvasCtx.restore()
 }
