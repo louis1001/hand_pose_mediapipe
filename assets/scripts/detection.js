@@ -19,6 +19,8 @@ import {
 
 import { Hand, analyze } from "./analysis.js";
 
+window.HandClass = Hand
+
 const demosSection = document.getElementById("demos");
 
 let handLandmarker = undefined;
@@ -112,9 +114,12 @@ async function predictWebcam() {
     if (results.landmarks) {
         if (once) { console.log(results) }
 
-        for (const landmarks of results.landmarks) {
-            let hand = new Hand(landmarks)
-            analyze(hand)
+        let hands = []
+        results.landmarks.forEach((landmarks, i) => {
+            let handedness = results.handednesses[i][0]
+            
+            let hand = new Hand(landmarks, handedness.categoryName != "Right")
+            hands.push(hand)
             
             if (once) {
                 console.log(landmarks)
@@ -124,7 +129,9 @@ async function predictWebcam() {
                 lineWidth: 7
             });
             drawLandmarks(canvasCtx, landmarks, { color: "#FF0000", lineWidth: 1 });
-        }
+        })
+
+        analyze(hands)
 
         once = false
     }
