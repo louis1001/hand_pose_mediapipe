@@ -166,10 +166,10 @@ export class Hand {
         if (finger == 'thumb') {
             if ((this.isRightHand || this.palmForward) && !(this.isRightHand && this.palmForward)) {
                 // Rotate clockwise
-                comparisonVector = comparisonVector.rotated2d(Hand.thresholds['thumb'])
+                comparisonVector = comparisonVector.rotated2d(-Hand.thresholds['thumb'])
             } else {
                 // Rotate counter-clockwise
-                comparisonVector = comparisonVector.rotated2d(-Hand.thresholds['thumb'])
+                comparisonVector = comparisonVector.rotated2d(Hand.thresholds['thumb'])
             }
         }
 
@@ -179,6 +179,15 @@ export class Hand {
     }
 
     parseHandGeometry() {
+        let palmForward = false
+        if (this.isRightHand) {
+            palmForward = this._points[17].x < this._points[1].x
+        } else {
+            palmForward = this._points[1].x < this._points[17].x
+        }
+
+        this.palmForward = palmForward
+
         let midPointLeft = this._points[9]
         let midPointRight = this._points[13]
 
@@ -230,15 +239,7 @@ export class Hand {
             'thumb': thumbPoints.map(i => this._points[i])
         }
 
-        let palmForward = false
-        if (this.isRightHand) {
-            palmForward = this._points[1].x < this._points[17].x
-        } else {
-            palmForward = this._points[17].x < this._points[1].x
-        }
-
         this.fingers = fingers
-        this.palmForward = palmForward
     }
 
     touchingTips(finger1, finger2, threshold) {
@@ -314,8 +315,20 @@ export async function analyze(hands) {
                 && hand.touchingTips('ring', 'pinky', 0.4)) {
             result = "B"
 
+        } else if (arrayEquals(fingers, [false, true, true, false, false])) {
+            result = "🤟"
+        } else if (arrayEquals(fingers, [false, true, true, false, true])) {
+            result = "🤘"
+        // }
+        // else if (arrayEquals(fingers, [false, false, false, false, false])
+        //         && hand.touchingTips('index', 'middle')
+        //         && !hand.touchingTips('middle', 'ring')
+        //         && hand.touchingTips('ring', 'pinky', 0.4) && hand.palmForward) {
+        //     result = "🖖"
+
             // Números genéricos
-        } else if (arrayEquals(fingers, [false, true, true, true, true])) {
+        }
+        else if (arrayEquals(fingers, [false, true, true, true, true])) {
             result = "1"
         } else if (arrayEquals(fingers, [false, false, true, true, true])) {
             result = "2"
@@ -331,9 +344,9 @@ export async function analyze(hands) {
             // Gestos complejos
         } else if (!fingers[1] && !fingers[2] && !fingers[3] && (hand.touchingTips('thumb', 'index'))) {
             result = "Ok"
-
-            // Si no se reconoció
-        } else {
+        }
+        // Si no se reconoció
+        else {
             result = "?"
         }
 
